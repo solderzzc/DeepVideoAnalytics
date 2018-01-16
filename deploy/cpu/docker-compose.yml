@@ -23,7 +23,7 @@
      volumes:
        - dvaredis:/bitnami
    dva:
-     image: akshayubhat/dva-auto:latest
+     image: solderzzc/dva-auto:latest
      container_name: webserver
      env_file:
        - ../common.env
