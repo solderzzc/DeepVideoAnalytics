@@ -16,7 +16,7 @@ RUN pip install --upgrade matplotlib
 RUN wget https://yt-dl.org/downloads/latest/youtube-dl -O /bin/youtube-dl
 RUN chmod a+rx /bin/youtube-dl
 RUN youtube-dl -U
-RUN git clone https://github.com/akshayubhat/DeepVideoAnalytics /root/DVA
+RUN git clone https://github.com/solderzzc/DeepVideoAnalytics /root/DVA
 WORKDIR "/root/DVA"
 RUN pip install --upgrade cffi
 RUN pip install --no-deps keras
@@ -25,6 +25,7 @@ RUN pip install pip --upgrade
 RUN pip install --no-cache-dir http://download.pytorch.org/whl/cu75/torch-0.1.12.post2-cp27-none-linux_x86_64.whl
 RUN pip install --no-cache-dir mxnet==0.11.0
 RUN pip install torchvision
+RUN pip install redis
 RUN apt-get install -y libhdf5-dev
 RUN pip install --no-deps h5py
 WORKDIR "/root/DVA"
