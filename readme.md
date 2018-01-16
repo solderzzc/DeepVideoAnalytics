@@ -1,77 +1,102 @@
-# Deep Video Analytics  •  [![Build Status](https://travis-ci.org/AKSHAYUBHAT/DeepVideoAnalytics.svg?branch=master)](https://travis-ci.org/AKSHAYUBHAT/DeepVideoAnalytics)
+# Deep Video Analytics &nbsp; &nbsp; [![Build Status](https://travis-ci.org/AKSHAYUBHAT/DeepVideoAnalytics.svg?branch=master)](https://travis-ci.org/AKSHAYUBHAT/DeepVideoAnalytics)
+#### by [Akshay Bhat, Cornell University.](http://www.akshaybhat.com)  
 
-![Banner](notes/banner_small.png "banner")
-![UI Screenshot](notes/face_recognition.png "face recognition")
-#### Author [Akshay Bhat, Cornell University.](http://www.akshaybhat.com)       
+![UI Screenshot](docs/figures/emma.png "Emma Watson, from poster of her latest subject appropriate movie The Circle")
 
-### [Visit the website for demo video of the UI and installation instructions](https://deepvideoanalytics.com)
+Deep Video Analytics is a platform for indexing and extracting information from videos and images.
+With latest version of docker installed correctly, you can run Deep Video Analytics in minutes
+locally (even without a GPU) using a single command.
 
-Deep Video Analytics provides a platform for indexing and extracting information from videos and images.
-Deep learning detection and recognition algorithms are used for indexing individual frames/images along with 
-detected objects. The goal of Deep Video analytics is to become a quickly customizable platform for developing 
-visual & video analytics applications, while benefiting from seamless integration with state or the art models & datasets
-released by the vision research community. 
+#### For installation instructions & demo please visit [https://www.deepvideoanalytics.com](https://www.deepvideoanalytics.com)
 
-## Features
-- Visual Search using Nearest Neighbors algorithm as a primary interface
-- Upload videos, multiple images (zip file with folder names as labels)
-- Provide Youtube url to be automatically processed/downloaded by youtube-dl
-- Leverage pre-trained object recognition/detection, face recognition models for analysis and visual search.
-- Query against pre-indexed external datasets containing millions of images.
-- Metadata stored in Postgres, Operations performed asynchronously using celery tasks. 
-- Separate queues and workers for selection of machines with different specifications (GPU vs RAM).
-- Videos, frames, indexes, numpy vectors stored in media directory, served through nginx
-- Explore data, manually run code & tasks without UI via a jupyter notebook [explore.ipynb](experiments/Notebooks/explore.ipynb)
+### Documentation & tutorial
 
-## Models included out of the box
-**We take significant efforts to ensure that following models (code+weights included) work without having to write any code.**
+- For a quick overview we **strongly recommend** going through the [presentation in readme.pdf](/docs/readme.pdf)
 
-- [x] Indexing using Google inception V3 trained on Imagenet
-- [x] [Single Shot Detector (SSD) Multibox 300 training using VOC](https://github.com/balancap/SSD-Tensorflow)  
-- [x] Alexnet using Pytorch  (disabled by default; set ALEX_ENABLE=1 in environment variable to use)
-- [x] [YOLO 9000](http://pjreddie.com/darknet/yolo/) (disabled by default; set YOLO_ENABLE=1 in environment variable to use)
-- [x] [Face detection/alignment/recognition using MTCNN and Facenet](https://github.com/davidsandberg/facenet) 
+- Documentation along with a tutorial is being written in [/docs/tutorial](/docs/tutorial) directory.
 
-##### self-promotion: If you are interested in Healthcare & Machine Learning please take a look at my another Open Source project [Computational Healthcare](http://www.computationalhealthcare.com)
+### Experiments
 
-## Libraries & Code used
+- **OCR example has been moved to [/docs/experiments/ocr](/docs/experiments/ocr) directory**.
+- More experiments coming soon!
 
-- Pytorch [License](https://github.com/pytorch/pytorch/blob/master/LICENSE)
-- Darknet [License](https://github.com/pjreddie/darknet/blob/master/LICENSE)
-- AdminLTE2 [License](https://github.com/almasaeed2010/AdminLTE/blob/master/LICENSE)
-- FabricJS [License](https://github.com/kangax/fabric.js/blob/master/LICENSE)
-- Modified PySceneDetect [License](https://github.com/Breakthrough/PySceneDetect)
-- Modified SSD-Tensorflow [Individual files are marked as Apache](https://github.com/balancap/SSD-Tensorflow)
-- FAISS [License (Non Commercial)](https://github.com/facebookresearch/faiss)
-- Facenet [License](https://github.com/davidsandberg/facenet)
-- MTCNN [TensorFlow port of MTCNN for face detection/alignment](https://github.com/kpzhang93/MTCNN_face_detection_alignment)
-- Locally Optimized Product Quantization [License](https://github.com/yahoo/lopq/blob/master/LICENSE)
-- Docker 
-- Nvidia-docker
-- OpenCV
-- Numpy
-- FFMPEG
-- Tensorflow
 
-# References
+### Deployment
 
-1. Schroff, Florian, Dmitry Kalenichenko, and James Philbin. "Facenet: A unified embedding for face recognition and clustering." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
-2. Szegedy, Christian, et al. "Going deeper with convolutions." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2015.
-3. Zhang, Kaipeng, et al. "Joint Face Detection and Alignment Using Multitask Cascaded Convolutional Networks." IEEE Signal Processing Letters 23.10 (2016): 1499-1503.
-4. Liu, Wei, et al. "SSD: Single shot multibox detector." European Conference on Computer Vision. Springer International Publishing, 2016.
-5. Redmon, Joseph, et al. "You only look once: Unified, real-time object detection." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2016.
-6. Krizhevsky, Alex, Ilya Sutskever, and Geoffrey E. Hinton. "Imagenet classification with deep convolutional neural networks." Advances in neural information processing systems. 2012.	
-7. Johnson, Jeff, Matthijs Douze, and Hervé Jégou. "Billion-scale similarity search with GPUs." arXiv preprint arXiv:1702.08734 (2017).
+We provide instructions for deploying DVA in three scenarios.
 
-# Citation 
+1. [deploy/cpu](/deploy/cpu) contains docker-compose files for non-GPU single machine deployments on Linode, AWS, GCP etc.
 
-**Citation for Deep Video Analytics coming soon.**
+2. [deploy/gpu](/deploy/gpu) contains docker-compose files for GPU single machine deployments on GCP, AWS etc.
 
-# Copyright
+3. [deploy/kube](/deploy/kube) contains files used for launching DVA in a scalable GKE + GCS setup
+
+
+### Development
+
+- [deploy/dev](/deploy/dev) contains docker-compose files for interactively developing DVA by using  host server directory mapped as a volume.
+
+
+### Code organization
+
+- /client : Python client using DVA REST API
+- /configs : ngnix config + defaults.py defining models + processing pipelines (can be replaced by mounting a volume)
+- /deploy : Dockerfiles + Instructions for development, single machine deployment abnd scalable deployment with Kubernetes
+- /docs : Documentation, tutorial and experiments
+- /tests : Files required for testing
+- /repos : Code copied from third party repos, e.g. Yahoo LOPQ, TF-CTPN etc.
+- /server : dvalib + django server contains contains bulk of the code for UI, App and models.
+- /logs : Empty dir for storing logs
+
+### Libraries modified in code and their licenses
+
+| Library  | Link to the license | 
+| -------- | ------------------- |
+| YAD2K  |  [MIT License](https://github.com/allanzelener/YAD2K/blob/master/LICENSE)  |
+| AdminLTE2  |  [MIT License](https://github.com/almasaeed2010/AdminLTE/blob/master/LICENSE) |
+| FabricJS |  [MIT License](https://github.com/kangax/fabric.js/blob/master/LICENSE)  |
+| Facenet   |  [MIT License](https://github.com/davidsandberg/facenet)  |
+| JSFeat   |  [MIT License](https://inspirit.github.io/jsfeat/)  |
+| MTCNN   |  [MIT License](https://github.com/kpzhang93/MTCNN_face_detection_alignment)  |
+| CRNN.pytorch  |  [MIT License](https://github.com/meijieru/crnn.pytorch/blob/master/LICENSE.md)  |
+| Original CRNN code by Baoguang Shi  |  [MIT License](https://github.com/bgshih/crnn) |
+| Object Detector App using TF Object detection API |  [MIT License](https://github.com/datitran/Object-Detector-App) | 
+| Plotly.js |  [MIT License](https://github.com/plotly/plotly.js/blob/master/LICENSE) | 
+| CRF as RNN  |  [MIT License](https://github.com/sadeepj/crfasrnn_keras/blob/master/LICENSE) | 
+| Text Detection CTPN  |  [MIT License](https://github.com/eragonruan/text-detection-ctpn/LICENSE) | 
+| SphereFace  |  [MIT License](https://github.com/wy1iu/sphereface/blob/master/license) |
+| Segment annotator  |   [BSD 3-clause](https://github.com/kyamagu/js-segment-annotator/blob/master/LICENSE) |
+| TF Object detection API  | [Apache 2.0](https://github.com/tensorflow/models/tree/master/research/object_detection) |
+| TF models/slim  | [Apache 2.0](https://github.com/tensorflow/models/tree/master/research/slim) |
+| TF models/delf  | [Apache 2.0](https://github.com/tensorflow/models/tree/master/research/delf) |
+| Youtube 8M feature extractor  | [Apache 2.0](https://github.com/google/youtube-8m) |
+| CROW   |  [Apache 2.0](https://github.com/yahoo/crow/blob/master/LICENSE)  | 
+| LOPQ   |  [Apache 2.0](https://github.com/yahoo/lopq/blob/master/LICENSE)  | 
+| Open Images Pre-trained network  |  [Apache 2.0](https://github.com/openimages/dataset/blob/master/LICENSE) |
+
+
+### Additional libraries & frameworks
+
+* FFmpeg (not linked, called via a Subprocess)
+* Tensorflow 
+* OpenCV
+* Numpy
+* Pytorch
+* Docker
+* Nvidia-docker
+* Docker-compose
+* All packages in [requirements.txt](/requirements.txt)
+* All dependancies in [Dockerfile](/deploy/dockerfiles/Dockerfile)
+
+
+
+# License & Copyright
 
 **Copyright 2016-2017, Akshay Bhat, Cornell University, All rights reserved.**
 
+# Contact
 
-Please contact me for more information, I plan on relaxing the license soon, once a beta version is reached 
-(To the extent allowed by the code/models included.e.g. FAISS disallows commercial use.). 
+Deep Video Analytics is currently in active development.
+The license will be relaxed once a stable release version is reached.
+Please contact me for more information. For more information see [answer on this issue](https://github.com/AKSHAYUBHAT/DeepVideoAnalytics/issues/29)
  
