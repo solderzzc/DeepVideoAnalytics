@@ -8,6 +8,7 @@ from dva.in_memory import redis_client
 from .fs import ensure, upload_file_to_remote, upload_video_to_remote, get_path_to_file
 from dva.celery import app
 
+
 def pid_exists(pid):
     try:
         os.kill(pid, 0)
@@ -132,9 +133,13 @@ def export_file(video_obj,export_event_pk=None):
     return file_name
 
 
-def build_queryset(args,video_id=None,query_id=None):
-    target = args['target']
-    kwargs = args.get('filters',{})
+def build_queryset(args,video_id=None,query_id=None,target=None,filters=None):
+    if target is None:
+        target = args['target']
+    if filters is None:
+        kwargs = args.get('filters',{})
+    else:
+        kwargs = filters
     if video_id:
         kwargs['video_id'] = video_id
     if target == 'frames':

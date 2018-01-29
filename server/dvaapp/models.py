@@ -43,6 +43,8 @@ class DVAPQL(models.Model):
     results_metadata = models.TextField(default="")
     results_available = models.BooleanField(default=False)
     completed = models.BooleanField(default=False)
+    failed = models.BooleanField(default=False)
+    error_message = models.TextField(default="",blank=True,null=True)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
 
@@ -135,6 +137,37 @@ class TEvent(models.Model):
     task_group_id = models.IntegerField(default=-1)
 
 
+class TrainingSet(models.Model):
+    DETECTION = 'D'
+    INDEXING = 'I'
+    LOPQINDEX = 'A'
+    CLASSIFICATION = 'C'
+    TRAIN_TASK_TYPES = (
+        (DETECTION, 'Detection'),
+        (INDEXING, 'Indexing'),
+        (LOPQINDEX, 'LOPQ Approximation'),
+        (CLASSIFICATION, 'Classification')
+    )
+    IMAGES = 'I'
+    VIDEOS = 'V'
+    INDEX = 'X'
+    INSTANCE_TYPES = (
+        (IMAGES, 'images'),
+        (INDEX, 'index'),
+        (VIDEOS, 'videos'),
+    )
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    event = models.ForeignKey(TEvent,null=True)
+    source_filters = JSONField(blank=True,null=True)
+    training_task_type = models.CharField(max_length=1,choices=TRAIN_TASK_TYPES,db_index=True,default=DETECTION)
+    instance_type = models.CharField(max_length=1,choices=INSTANCE_TYPES,db_index=True,default=IMAGES)
+    count = models.IntegerField(null=True)
+    name = models.CharField(max_length=500,default="")
+    files = JSONField(blank=True,null=True)
+    built = models.BooleanField(default=False)
+    created = models.DateTimeField('date created', auto_now_add=True)
+
+
 class TrainedModel(models.Model):
     """
     A model Model
@@ -178,8 +211,9 @@ class TrainedModel(models.Model):
     model_filename = models.CharField(max_length=200,default="",null=True)
     created = models.DateTimeField('date created', auto_now_add=True)
     arguments = JSONField(null=True,blank=True)
-    source = models.ForeignKey(TEvent, null=True)
+    event = models.ForeignKey(TEvent, null=True)
     trained = models.BooleanField(default=False)
+    training_set = models.ForeignKey(TrainingSet,null=True)
     url = models.CharField(max_length=200,default="")
     files = JSONField(null=True,blank=True)
     produces_labels = models.BooleanField(default=False)
@@ -190,6 +224,11 @@ class TrainedModel(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     def create_directory(self,create_subdirs=True):
+        if not os.path.isdir('{}/models/'.format(settings.MEDIA_ROOT)):
+            try:
+                os.mkdir('{}/models/'.format(settings.MEDIA_ROOT))
+            except:
+                pass
         try:
             os.mkdir('{}/models/{}'.format(settings.MEDIA_ROOT, self.uuid))
         except:
@@ -205,17 +244,10 @@ class TrainedModel(models.Model):
         else:
             return None
 
-    def get_yolo_args(self):
-        model_dir = "{}/models/{}/".format(settings.MEDIA_ROOT, self.uuid)
-        class_names = {k: v for k, v in json.loads(self.class_names)}
-        args = {'root_dir': model_dir,
-                'detector_pk': self.pk,
-                'class_names':{i: k for k, i in class_names.items()}
-                }
-        return args
-
-    def get_class_dist(self):
-        return json.loads(self.class_distribution) if self.class_distribution.strip() else {}
+    def upload(self):
+        for m in self.files:
+            if settings.DISABLE_NFS and sys.platform != 'darwin':
+                fs.upload_file_to_remote("/models/{}/{}".format(self.uuid,m['filename']))
 
     def download(self):
         root_dir = settings.MEDIA_ROOT
@@ -234,8 +266,7 @@ class TrainedModel(models.Model):
                 shutil.copy(m['url'], dlpath)
             else:
                 fs.get_path_to_file(m['url'],dlpath)
-            if settings.DISABLE_NFS and sys.platform != 'darwin':
-                fs.upload_file_to_remote("/models/{}/{}".format(self.uuid,m['filename']))
+        self.upload()
         if self.model_type == TrainedModel.DETECTOR and self.detector_type == TrainedModel.YOLO:
             source_zip = "{}/models/{}/model.zip".format(settings.MEDIA_ROOT, self.uuid)
             zipf = zipfile.ZipFile(source_zip, 'r')
@@ -632,15 +663,11 @@ class VideoLabel(models.Model):
 
 
 class DeletedVideo(models.Model):
-    name = models.CharField(max_length=500,default="")
-    description = models.TextField(default="")
-    uploader = models.ForeignKey(User,null=True,related_name="user_uploader")
-    url = models.TextField(default="")
     deleter = models.ForeignKey(User,related_name="user_deleter",null=True)
-    original_pk = models.IntegerField()
+    video_uuid = models.UUIDField(default=uuid.uuid4,null=True)
 
     def __unicode__(self):
-        return u'Deleted {}'.format(self.name)
+        return u'Deleted {} by {}'.format(self.video_uuid,self.deleter)
 
 
 class ManagementAction(models.Model):
@@ -671,26 +698,3 @@ class QueryRegionIndexVector(models.Model):
     created = models.DateTimeField('date created', auto_now_add=True)
 
 
-class TrainingSet(models.Model):
-    DETECTION = 'D'
-    INDEXING = 'I'
-    LOPQINDEX = 'A'
-    CLASSIFICATION = 'C'
-    TRAIN_TASK_TYPES = (
-        (DETECTION, 'Detection'),
-        (INDEXING, 'Indexing'),
-        (CLASSIFICATION, 'Classication')
-    )
-    IMAGES = 'I'
-    VIDEOS = 'V'
-    INSTANCE_TYPES = (
-        (IMAGES, 'images'),
-        (VIDEOS, 'videos'),
-    )
-    event = models.ForeignKey(TEvent)
-    training_task_type = models.CharField(max_length=1,choices=TRAIN_TASK_TYPES,db_index=True,default=DETECTION)
-    instance_type = models.CharField(max_length=1,choices=INSTANCE_TYPES,db_index=True,default=IMAGES)
-    count = models.IntegerField(null=True)
-    name = models.CharField(max_length=500,default="")
-    built = models.BooleanField(default=False)
-    created = models.DateTimeField('date created', auto_now_add=True)

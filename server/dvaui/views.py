@@ -326,18 +326,6 @@ class TrainedModelDetail(UserPassesTestMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super(TrainedModelDetail, self).get_context_data(**kwargs)
-        classdist = context['object'].class_distribution.strip()
-        context['class_distribution'] = json.loads(classdist) if classdist else {}
-        context['phase_1_log'] = []
-        context['phase_2_log'] = []
-        for k in context['object'].phase_1_log.split('\n')[1:]:
-            if k.strip():
-                epoch,train_loss,val_loss = k.strip().split(',')
-                context['phase_1_log'].append((epoch,round(float(train_loss),2),round(float(val_loss),2)))
-        for k in context['object'].phase_2_log.split('\n')[1:]:
-            if k.strip():
-                epoch,train_loss,val_loss = k.strip().split(',')
-                context['phase_2_log'].append((epoch,round(float(train_loss),2),round(float(val_loss),2)))
         return context
 
     def test_func(self):
@@ -349,8 +337,24 @@ class TrainingSetList(UserPassesTestMixin, ListView):
     template_name = "dvaui/training_set_list.html"
     paginate_by = 50
 
+    class Meta:
+        ordering = ["-created"]
+
     def get_context_data(self, **kwargs):
         context = super(TrainingSetList, self).get_context_data(**kwargs)
+        return context
+
+    def test_func(self):
+        return user_check(self.request.user)
+
+
+class TrainingSetDetail(UserPassesTestMixin, DetailView):
+    model = TrainingSet
+    template_name = "dvaui/training_set_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super(TrainingSetDetail, self).get_context_data(**kwargs)
+        context['trained_model_set'] = TrainedModel.objects.filter(training_set=context['object'])
         return context
 
     def test_func(self):
@@ -400,6 +404,7 @@ class StoredProcessList(UserPassesTestMixin, ListView):
         context['models'] = TrainedModel.objects.filter(model_type__in=[TrainedModel.INDEXER,TrainedModel.DETECTOR,
                                                                         TrainedModel.ANALYZER])
         context["videos"] = Video.objects.all()
+        context["lopq_training_sets"] = TrainingSet.objects.filter(training_task_type=TrainingSet.LOPQINDEX, built=True)
         return context
 
     def test_func(self):
@@ -458,7 +463,7 @@ def index(request, query_pk=None, frame_pk=None, detection_pk=None):
                                                       '{}_{}'.format(i.pk,r.pk)))
     if query_pk:
         previous_query = DVAPQL.objects.get(pk=query_pk)
-        context['initial_url'] = '{}queries/{}.png'.format(settings.MEDIA_URL, query_pk)
+        context['initial_url'] = '{}queries/{}.png'.format(settings.MEDIA_URL, previous_query.uuid)
     elif frame_pk:
         frame = Frame.objects.get(pk=frame_pk)
         context['initial_url'] = '{}{}/frames/{}.jpg'.format(settings.MEDIA_URL, frame.video.pk, frame.frame_index)
@@ -928,7 +933,7 @@ def rename_video(request):
     if request.user.is_staff: # currently only staff can rename
         video_pk = request.POST.get('video_id')
         name = request.POST.get('name')
-        v = Video.objects.get(pk=int(video_pk))
+        v = Video.objects.get(pk=video_pk)
         v.name = name
         v.save()
         return redirect('video_list')
@@ -968,62 +973,26 @@ def shortcuts(request):
                 algorithm = Retriever.EXACT
             _ = view_shared.create_retriever(name,algorithm,filters,indexer_shasum,approximator_shasum,user)
             return redirect('retriever_list')
+        elif request.POST.get('op') == 'create_approximator_training_set':
+            name = request.POST.get('name')
+            video_pks = request.POST.getlist('video_pk')
+            indexer_shasum = request.POST.get('indexer_shasum')
+            _ = view_shared.create_approximator_training_set(name,indexer_shasum,video_pks,user)
+            return redirect('training_set_list')
+        elif request.POST.get('op') == 'perform_approximator_training':
+            training_set_pk = request.POST.get('lopq_training_set_pk')
+            dt = TrainingSet.objects.get(pk=training_set_pk)
+            args = {}
+            args['trainer'] = "LOPQ"
+            args['name'] = request.POST.get('name')
+            args['indexer_shasum'] = dt.source_filters['indexer_shasum']
+            args['components'] = request.POST.get('components')
+            args['m'] = request.POST.get('m')
+            args['v'] = request.POST.get('v')
+            args['sub'] = request.POST.get('sub')
+            process_pk = view_shared.perform_training(training_set_pk,args,user)
+            return redirect('process_detail',process_pk)
         else:
             raise NotImplementedError(request.POST.get('op'))
     else:
         raise NotImplementedError("Only POST allowed")
-
-
-
-# @user_passes_test(user_check)
-# def index_video(request):
-#     if request.method == 'POST':
-#         filters = {
-#             'region_type__in': request.POST.getlist('region_type__in', []),
-#             'w__gte': int(request.POST.get('w__gte')),
-#             'h__gte': int(request.POST.get('h__gte'))
-#          }
-#         for optional_key in ['text__contains', 'object_name__contains', 'object_name']:
-#             if request.POST.get(optional_key, None):
-#                 filters[optional_key] = request.POST.get(optional_key)
-#         for optional_key in ['h__lte', 'w__lte']:
-#             if request.POST.get(optional_key, None):
-#                 filters[optional_key] = int(request.POST.get(optional_key))
-#         args = {'filters':filters,'index':request.POST.get('visual_index_name')}
-#         p = DVAPQLProcess()
-#         spec = {
-#             'process_type':DVAPQL.PROCESS,
-#             'tasks':[
-#                 {
-#                     'operation':'perform_indexing',
-#                     'arguments':args,
-#                     'video_id':request.POST.get('video_id')
-#                 }
-#             ]
-#         }
-#         user = request.user if request.user.is_authenticated else None
-#         p.create_from_json(spec,user)
-#         p.launch()
-#         redirect('process_detail',pk=p.process.pk)
-#     else:
-#         raise ValueError
-#
-#
-# @user_passes_test(user_check)
-# def detect_objects(request):
-#     if request.method == 'POST':
-#         detector_pk = request.POST.get('detector_pk')
-#         video_pk = request.POST.get('video_pk')
-#         p = DVAPQLProcess()
-#         p.create_from_json(j={
-#             "process_type":DVAPQL.PROCESS,
-#             "tasks":[{'operation':"perform_detection",
-#                       'arguments':{'detector_pk': int(detector_pk),'detector':"custom"},
-#                       'video_id':video_pk}]
-#         },user=request.user if request.user.is_authenticated else None)
-#         p.launch()
-#         return redirect('process_detail',pk=p.process.pk)
-#     else:
-#         raise ValueError
-
-
