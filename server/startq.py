@@ -34,6 +34,10 @@ if __name__ == "__main__":
         command = 'celery -A dva worker -l info {} -c {} -Q {} -n {}.%h -f ../logs/{}.log'.format(mute, max(int(conc), 4),
                                                                                                   queue_name, queue_name,
                                                                                                   queue_name)
+    elif queue_name == settings.Q_REDUCER:
+        command = 'celery -A dva worker -l info {} -c {} -Q {} -n {}.%h -f ../logs/{}.log'.format(mute, max(int(conc), 4),
+                                                                                                  queue_name, queue_name,
+                                                                                                  queue_name)
     else:
         command = 'celery -A dva worker -l info {} -P solo -c {} -Q {} -n {}.%h -f ../logs/{}.log'.format(mute, 1,
                                                                                                           queue_name,
