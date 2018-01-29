@@ -68,11 +68,8 @@
             <canvas id="canvas"  width="500" height="500"></canvas>
         </div>
         <div class="m-t row">
-            <div class="col-xs-12" style="margin-bottom:15px">
+            <div class="col-xs-12" style="margin-bottom:5px">
                 <h5 style="font-weight:bold" class="pull-left">Select index > retriever sequence for retrieval</h5>
-                <div class="pull-right">
-                    <a class="btn btn-primary" href="/retrievers/"><i class="fa fa-edit"></i> Create new retriever</a>
-                </div>
             </div>
             <div class="col-xs-12">
             <select class="js-example-basic-multiple" multiple="multiple" id="indexer_list" style="width:100%">
@@ -136,7 +133,7 @@
                                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                     <span aria-hidden="true">&times;</span></button><h4 class="modal-title">Upload video / dataset or list of images or exported zip file.</h4></div>
                                 <div class="modal-body">
-                                <p>An .mp4 video file or multiple images in a single zip file <a href="https://github.com/AKSHAYUBHAT/DeepVideoAnalytics/blob/master/tests/exampledataset.zip" target="_blank">(example of a zip file)</a> or json/gz file containing list of image urls, s3/gcs paths
+                                <p>An .mp4 video file or multiple images in a single zip file <a href="https://github.com/AKSHAYUBHAT/DeepVideoAnalytics/blob/master/tests/ci/exampledataset.zip" target="_blank">(example of a zip file)</a> or json/gz file containing list of image urls, s3/gcs paths
                                     <a href="https://github.com/AKSHAYUBHAT/DeepVideoAnalytics/blob/master/tests/ci/framelist.json" target="_blank">(example of a json or gz file)</a>  or an exported ".dva_export.zip".</p>
                                 <form role="form"  method="post" enctype="multipart/form-data" action="#" >
                                     <div class="form-group">
@@ -261,7 +258,7 @@
                         </div>
                         <div class="row">
                             <div class="col-xs-3">
-                                <a class="btn" href="/models/" style="margin: 10px auto" > <i class="fa fa-play"></i> {{ models_count }} deep models</a>
+                                <a class="btn" href="/models/" style="margin: 10px auto" > <i class="fa fa-play"></i> {{ models_count }} trained models</a>
                             </div>
                             <div class="col-xs-3">
                                 <a class="btn" href="/tasks/" style="margin: 10px auto" > <i class="fa fa-clock-o"></i> {{ task_events_count }}  tasks </a>

@@ -10,7 +10,7 @@ except ImportError:
     np = None
     logging.warning("Could not import indexer / clustering assuming running in front-end mode")
 from django.apps import apps
-from models import Video,DVAPQL,TEvent,TrainedModel,Retriever,Worker
+from models import Video,DVAPQL,TEvent,TrainedModel,Retriever,Worker, DeletedVideo
 from celery.result import AsyncResult
 import fs
 import task_shared
@@ -27,11 +27,13 @@ SYNC_TASKS = {
     'perform_indexing':[{'operation': 'perform_sync', 'arguments': {'dirname': 'indexes'}},],
     'perform_index_approximation':[{'operation': 'perform_sync', 'arguments': {'dirname': 'indexes'}},],
     'perform_import':[{'operation': 'perform_sync', 'arguments': {}},],
-    'perform_detector_training':[],
+    'perform_training':[],
+    'perform_reduce':[],
     'perform_detector_import':[],
 }
 
 ANALYER_NAME_TO_PK = {}
+APPROXIMATOR_NAME_TO_PK = {}
 INDEXER_NAME_TO_PK = {}
 APPROXIMATOR_SHASUM_TO_PK = {}
 RETRIEVER_NAME_TO_PK = {}
@@ -54,6 +56,12 @@ def get_queues():
 
 
 def get_model_specific_queue_name(operation,args):
+    """
+    TODO simplify this mess by using model_selector
+    :param operation:
+    :param args:
+    :return:
+    """
     if 'detector_pk' in args:
         queue_name = "q_detector_{}".format(args['detector_pk'])
     elif 'indexer_pk' in args:
@@ -78,6 +86,12 @@ def get_model_specific_queue_name(operation,args):
             APPROXIMATOR_SHASUM_TO_PK[ashasum] = TrainedModel.objects.get(shasum=ashasum,
                                                                           model_type=TrainedModel.APPROXIMATOR).pk
         queue_name = 'q_approximator_{}'.format(APPROXIMATOR_SHASUM_TO_PK[ashasum])
+    elif 'approximator' in args:
+        ashasum= args['approximator']
+        if args['approximator'] not in APPROXIMATOR_NAME_TO_PK:
+            APPROXIMATOR_NAME_TO_PK[ashasum] = TrainedModel.objects.get(name=args['approximator'],
+                                                                          model_type=TrainedModel.APPROXIMATOR).pk
+        queue_name = 'q_approximator_{}'.format(APPROXIMATOR_NAME_TO_PK[args['approximator']])
     elif 'analyzer' in args:
         if args['analyzer'] not in ANALYER_NAME_TO_PK:
             ANALYER_NAME_TO_PK[args['analyzer']] = TrainedModel.objects.get(name=args['analyzer'],model_type=TrainedModel.ANALYZER).pk
@@ -223,7 +237,12 @@ def launch_tasks(k, dt, inject_filters, map_filters = None, launch_type = ""):
         args = perform_substitution(k['arguments'], dt, inject_filters, f)
         logging.info("launching {} -> {} with args {} as specified in {}".format(dt.operation, op, args, launch_type))
         q, op = get_queue_name_and_operation(k['operation'], args)
-        next_task = TEvent.objects.create(video=v, operation=op, arguments=args, parent=dt, parent_process=p, queue=q)
+        if "video_selector" in k and v is None:
+            video_per_task = Video.objects.get(**k['video_selector'])
+        else:
+            video_per_task = v
+        next_task = TEvent.objects.create(video=video_per_task, operation=op, arguments=args, parent=dt,
+                                          parent_process=p, queue=q)
         tids.append(app.send_task(k['operation'], args=[next_task.pk, ], queue=q).id)
     return tids
 
@@ -245,6 +264,11 @@ def process_next(task_id,inject_filters=None,custom_next_tasks=None,sync=True,la
     for k in next_tasks+custom_next_tasks:
         map_filters = get_map_filters(k,dt.video)
         launched += launch_tasks(k, dt, inject_filters,map_filters,'map')
+    for reduce_task in dt.arguments.get('reduce',[]):
+        next_task = TEvent.objects.create(video=dt.video, operation="perform_reduce",
+                                          arguments=reduce_task['arguments'], parent=dt,
+                                          parent_process_id=dt.parent_process_id, queue=settings.Q_REDUCER)
+        launched.append(app.send_task(next_task.operation, args=[next_task.pk, ], queue=settings.Q_REDUCER).id)
     return launched
 
 
@@ -305,9 +329,22 @@ class DVAPQLProcess(object):
             self.task_group_index += 1
             if 'map' in t.get('arguments',{}):
                 self.assign_task_group_id(t['arguments']['map'])
+            if 'reduce' in t.get('arguments',{}):
+                self.assign_task_group_id(t['arguments']['reduce'])
 
     def launch(self):
         if self.process.script['process_type'] == DVAPQL.PROCESS:
+            for d in self.process.script.get('delete',[]):
+                if d['MODEL'] == 'Video':
+                    d_copy = copy.deepcopy(d)
+                    m = apps.get_model(app_label='dvaapp',model_name=d['MODEL'])
+                    instance = m.objects.get(**d_copy['selector'])
+                    DeletedVideo.objects.create(deleter=self.process.user, video_uuid=instance.pk)
+                    instance.delete()
+                else:
+                    self.process.failed = True
+                    self.process.error_message = "Cannot delete {}; Only video deletion implemented.".format(d['MODEL'])
+            self.assign_task_group_id(self.process.script.get('tasks',[]))
             for c in self.process.script.get('create',[]):
                 c_copy = copy.deepcopy(c)
                 m = apps.get_model(app_label='dvaapp',model_name=c['MODEL'])

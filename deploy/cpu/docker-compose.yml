@@ -1,4 +1,3 @@
-# specify using docker-compose -f docker-compose-deploy.yml up
  version: '3'
  services:
    db:
@@ -42,9 +41,10 @@
        - LAUNCH_BY_NAME_detector_face=1
        - LAUNCH_BY_NAME_detector_textbox=1
        - LAUNCH_Q_qextract=1
+       - LAUNCH_Q_qtrainer=1
        - LAUNCH_SCHEDULER=1
        - INIT_PROCESS=/root/DVA/configs/custom_defaults/init_process.json
-     command: bash -c "ls -alh && mkdir -p /root/logs && git pull && sleep 10 && ./start_container.py"
+     command: bash -c "mkdir -p /root/logs && git reset --hard && git pull && sleep 10 && ./start_container.py"
      ports:
        - "127.0.0.1:8000:80" # Since Docker messes up iptables, ufw has no effect as a result bind to localhost and tunnel / Port forward through SSH
        - "127.0.0.1:8888:8888" # Since Docker messes up iptables, ufw has no effect as a result bind to localhost and tunnel / Port forward through SSH

@@ -247,14 +247,17 @@ GLOBAL_MODEL_QUEUE_ENABLED = os.environ.get('GLOBAL_MODEL',False)
 GLOBAL_RETRIEVER_QUEUE_ENABLED = False if os.environ.get('DISABLE_GLOBAL_RETRIEVER',False) else True
 
 Q_MANAGER = 'qmanager'
+Q_REDUCER = 'qreducer'
 Q_EXTRACTOR = 'qextract'
 Q_TRAINER = 'qtrainer'
 Q_LAMBDA = 'qlambda'
 GLOBAL_MODEL_FLASK_SERVER_PORT = 8989
 GLOBAL_MODEL = 'qglobal_model'  # if a model specific queue does not exists then this is where the task ends up
 GLOBAL_RETRIEVER = 'qglobal_retriever' # if a retriever specific queue does not exists then the task ends up here
+DEFAULT_REDUCER_TIMEOUT_SECONDS = 60 # Reducer tasks checks every 60 seconds if map tasks are finished.
 
 TASK_NAMES_TO_QUEUE = {
+    "perform_training_set_creation":Q_EXTRACTOR,
     "perform_region_import":Q_EXTRACTOR,
     "perform_model_import":Q_EXTRACTOR,
     "perform_video_segmentation":Q_EXTRACTOR,
@@ -267,6 +270,7 @@ TASK_NAMES_TO_QUEUE = {
     "perform_sync":Q_EXTRACTOR,
     "perform_detector_import":Q_EXTRACTOR,
     "perform_import":Q_EXTRACTOR,
-    "perform_detector_training": Q_TRAINER,
+    "perform_training": Q_TRAINER,
+    "perform_reduce": Q_REDUCER,
     "perform_video_decode_lambda": Q_LAMBDA
 }
