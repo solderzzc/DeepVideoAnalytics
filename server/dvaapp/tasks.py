@@ -11,6 +11,7 @@ from .operations.retrieval import Retrievers
 from .operations.decoding import VideoDecoder
 from .operations.dataset import DatasetCreator
 from .operations.training import train_lopq
+from .operations.livestreaming import LivestreamCapture
 from .processing import process_next, mark_as_completed
 from . import global_model_retriever
 from . import task_handlers
@@ -247,10 +248,6 @@ def perform_video_decode(task_id):
 
 @app.task(track_started=True, name="perform_detection")
 def perform_detection(task_id):
-    """
-    :param task_id:
-    :return:
-    """
     start = models.TEvent.objects.get(pk=task_id)
     if start.started:
         return 0  # to handle celery bug with ACK in SOLO mode
@@ -430,10 +427,6 @@ def perform_frame_download(event_id):
 
 @app.task(track_started=True, name="perform_sync")
 def perform_sync(task_id):
-    """
-    :param task_id:
-    :return:
-    """
     start = models.TEvent.objects.get(pk=task_id)
     if start.started:
         return 0  # to handle celery bug with ACK in SOLO mode
@@ -500,12 +493,24 @@ def perform_deletion(task_id):
     return
 
 
+@app.task(track_started=True, name="perform_stream_capture")
+def perform_stream_capture(task_id):
+    start = models.TEvent.objects.get(pk=task_id)
+    if start.started:
+        return 0  # to handle celery bug with ACK in SOLO mode
+    else:
+        start.started = True
+        start.save()
+    l = LivestreamCapture(start.video,start)
+    l.start_process()
+    l.poll()
+    l.finalize()
+    mark_as_completed(start)
+    return
+
+
 @app.task(track_started=True, name="perform_training_set_creation")
 def perform_training_set_creation(task_id):
-    """
-    :param task_id:
-    :return:
-    """
     start = models.TEvent.objects.get(pk=task_id)
     if start.started:
         return 0  # to handle celery bug with ACK in SOLO mode
@@ -548,10 +553,6 @@ def perform_training_set_creation(task_id):
 
 @app.task(track_started=True, name="perform_training")
 def perform_training(task_id):
-    """
-    :param task_id:
-    :return:
-    """
     start = models.TEvent.objects.get(pk=task_id)
     if start.started:
         return 0  # to handle celery bug with ACK in SOLO mode

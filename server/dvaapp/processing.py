@@ -28,6 +28,7 @@ SYNC_TASKS = {
     'perform_index_approximation':[{'operation': 'perform_sync', 'arguments': {'dirname': 'indexes'}},],
     'perform_import':[{'operation': 'perform_sync', 'arguments': {}},],
     'perform_training':[],
+    'perform_stream_capture':[],
     'perform_reduce':[],
     'perform_detector_import':[],
 }
@@ -242,12 +243,12 @@ def launch_tasks(k, dt, inject_filters, map_filters = None, launch_type = ""):
         else:
             video_per_task = v
         next_task = TEvent.objects.create(video=video_per_task, operation=op, arguments=args, parent=dt,
-                                          parent_process=p, queue=q)
+                                          task_group_id=k['task_group_id'],parent_process=p, queue=q)
         tids.append(app.send_task(k['operation'], args=[next_task.pk, ], queue=q).id)
     return tids
 
 
-def process_next(task_id,inject_filters=None,custom_next_tasks=None,sync=True,launch_next=True):
+def process_next(task_id,inject_filters=None,custom_next_tasks=None,sync=True,launch_next=True,map_filters=None):
     if custom_next_tasks is None:
         custom_next_tasks = []
     dt = TEvent.objects.get(pk=task_id)
@@ -262,11 +263,13 @@ def process_next(task_id,inject_filters=None,custom_next_tasks=None,sync=True,la
             else:
                 launched += launch_tasks(k,dt,inject_filters,None,'sync')
     for k in next_tasks+custom_next_tasks:
-        map_filters = get_map_filters(k,dt.video)
+        if map_filters is None:
+            map_filters = get_map_filters(k,dt.video)
         launched += launch_tasks(k, dt, inject_filters,map_filters,'map')
     for reduce_task in dt.arguments.get('reduce',[]):
         next_task = TEvent.objects.create(video=dt.video, operation="perform_reduce",
                                           arguments=reduce_task['arguments'], parent=dt,
+                                          task_group_id=reduce_task['task_group_id'],
                                           parent_process_id=dt.parent_process_id, queue=settings.Q_REDUCER)
         launched.append(app.send_task(next_task.operation, args=[next_task.pk, ], queue=settings.Q_REDUCER).id)
     return launched
@@ -287,6 +290,8 @@ class DVAPQLProcess(object):
         self.task_results = {}
         self.created_objects = []
         self.task_group_index = 0
+        self.task_group_name_to_index = {}
+        self.parent_task_group_index = {}
 
     def create_from_json(self, j, user=None):
         if self.process is None:
@@ -323,14 +328,23 @@ class DVAPQLProcess(object):
     def validate(self):
         pass
 
-    def assign_task_group_id(self, tasks):
+    def assign_task_group_id(self, tasks, parent_group_index = None):
         for t in tasks:
             t['task_group_id'] = self.task_group_index
             self.task_group_index += 1
+            if parent_group_index:
+                self.parent_task_group_index[t['task_group_id']] = parent_group_index
+            task_group_name = t['arguments'].get('task_group_name',None)
+            if task_group_name:
+                if task_group_name in self.task_group_name_to_index:
+                    self.process.failed = True
+                    self.process.error_message = "Repeated task group name."
+                else:
+                    self.task_group_name_to_index[task_group_name] = t['task_group_id']
             if 'map' in t.get('arguments',{}):
-                self.assign_task_group_id(t['arguments']['map'])
+                self.assign_task_group_id(t['arguments']['map'],t['task_group_id'])
             if 'reduce' in t.get('arguments',{}):
-                self.assign_task_group_id(t['arguments']['reduce'])
+                self.assign_task_group_id(t['arguments']['reduce'],t['task_group_id'])
 
     def launch(self):
         if self.process.script['process_type'] == DVAPQL.PROCESS:
@@ -344,7 +358,6 @@ class DVAPQLProcess(object):
                 else:
                     self.process.failed = True
                     self.process.error_message = "Cannot delete {}; Only video deletion implemented.".format(d['MODEL'])
-            self.assign_task_group_id(self.process.script.get('tasks',[]))
             for c in self.process.script.get('create',[]):
                 c_copy = copy.deepcopy(c)
                 m = apps.get_model(app_label='dvaapp',model_name=c['MODEL'])
@@ -360,14 +373,18 @@ class DVAPQLProcess(object):
             for t in self.process.script.get('tasks',[]):
                 self.launch_task(t)
         elif self.process.script['process_type'] == DVAPQL.QUERY:
+            self.assign_task_group_id(self.process.script.get('tasks', []))
             for t in self.process.script['tasks']:
                 operation = t['operation']
                 arguments = t.get('arguments',{})
                 queue_name, operation = get_queue_name_and_operation(operation,arguments)
-                next_task = TEvent.objects.create(parent_process=self.process, operation=operation,arguments=arguments,queue=queue_name)
+                next_task = TEvent.objects.create(parent_process=self.process, operation=operation,arguments=arguments,
+                                                  queue=queue_name,task_group_id=t['task_group_id'])
                 self.task_results[next_task.pk] = app.send_task(name=operation,args=[next_task.pk, ],queue=queue_name,priority=5)
         else:
             raise NotImplementedError
+        self.process.script['task_group_name_to_index'] = self.task_group_name_to_index
+        self.process.script['parent_task_group_index'] = self.parent_task_group_index
         self.process.save()
 
     def wait(self,timeout=60):
@@ -392,6 +409,9 @@ class DVAPQLProcess(object):
             v = Video.objects.get(pk=t['video_id'])
             map_filters = get_map_filters(t, v)
         else:
+            map_filters = [{}]
+        # This is useful in case of perform_stream_capture where batch size is used but number of segments is unknown
+        if map_filters == []:
             map_filters = [{}]
         for f in map_filters:
             args = copy.deepcopy(t.get('arguments', {}))  # make copy so that spec isnt mutated.
